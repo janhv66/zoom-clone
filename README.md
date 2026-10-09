@@ -60,53 +60,108 @@ A full-stack Zoom-like video conferencing application built with Next.js, React,
 zoom-clone/
 ├── frontend/
 │   ├── app/
+│   │   ├── login/
+│   │   │   └── page.js
+│   │   ├── meeting/
+│   │   │   └── [code]/
+│   │   │       └── page.js
+│   │   ├── globals.css
+│   │   ├── layout.js
+│   │   └── page.js
 │   ├── components/
-│   └── lib/
+│   │   ├── Header.js
+│   │   ├── Icon.js
+│   │   ├── JoinModal.js
+│   │   ├── MeetingRow.js
+│   │   ├── Modal.js
+│   │   ├── ParticipantsPanel.js
+│   │   ├── ScheduleModal.js
+│   │   └── VideoTile.js
+│   ├── lib/
+│   │   ├── api.js
+│   │   └── format.js
+│   ├── .env.example
+│   ├── jsconfig.json
+│   ├── next.config.js
+│   ├── package.json
+│   └── package-lock.json
+│
 ├── backend/
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── auth.py
+│   │   ├── meetings.py
+│   │   ├── participants.py
+│   │   └── signaling.py
+│   ├── auth.py
+│   ├── database.py
+│   ├── main.py
+│   ├── models.py
+│   ├── requirements.txt
+│   ├── schemas.py
+│   ├── seed.py
+│   └── services.py
+│
 └── README.md
 
 ## Getting Started
 
 ### Backend
 
+```bash
 cd backend
 python -m venv venv
+```
 
 Activate the virtual environment.
 
 macOS/Linux:
 
+```bash
 source venv/bin/activate
+```
 
 Windows:
 
+```bash
 venv\Scripts\activate
+```
 
 Install dependencies:
 
+```bash
 pip install -r requirements.txt
+```
 
 Start the backend:
 
-uvicorn app.main:app --reload
+```bash
+uvicorn main:app --reload
+```
 
 The backend runs at:
 
+```text
 http://localhost:8000
+```
 
 ### Frontend
 
 Open another terminal:
 
+```bash
 cd frontend
 npm install
 npm run dev
+```
 
 The frontend runs at:
 
+```text
 http://localhost:3000
+```
 
-Open http://localhost:3000 in your browser.
+Open `http://localhost:3000` in your browser.
 
 ## Usage
 
