@@ -24,16 +24,11 @@ A full-stack Zoom-like video conferencing application built with Next.js, React,
 - Screen sharing
 - Participant list and participant count
 - Real-time participant video
-- Chat interface
-- Reactions
-- WebSocket-based signaling
-- Host controls
 - Mute all participants
 - Remove participants
 - End meeting for everyone
 - Responsive desktop, tablet, and mobile UI
 - Mobile More menu for secondary meeting controls
-- Meeting timer
 
 ## Tech Stack
 
