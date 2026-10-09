@@ -32,7 +32,10 @@ export default function Room() {
   const [meeting, setMeeting] = useState(null);
   const [data, setData] = useState({ participants: [] });
   const [stream, setStream] = useState(null);
-
+  const streamRef = useRef(null);
+  useEffect(() => {
+    streamRef.current = stream;
+  }, [stream]);
   const [muted, setMuted] = useState(true);
   const [camOn, setCamOn] = useState(false);
   const [panel, setPanel] = useState(false);
@@ -50,9 +53,14 @@ export default function Room() {
 
   // WebRTC connections.
   const peersRef = useRef({});
+  const remoteStreamsRef = useRef({});
 
   // WebSocket connection.
   const socketRef = useRef(null);
+
+  useEffect(() => {
+    remoteStreamsRef.current = remoteStreams;
+  }, [remoteStreams]);
 
   /*
    * Create a WebRTC connection for one remote participant.
@@ -71,23 +79,73 @@ export default function Room() {
     });
 
     // Send our local camera/microphone tracks.
-    if (stream) {
-      stream.getTracks().forEach((track) => {
-        peer.addTrack(track, stream);
-      });
+    const audioTransceiver = peer.addTransceiver('audio', {
+      direction: 'sendrecv',
+    });
+
+    const videoTransceiver = peer.addTransceiver('video', {
+      direction: 'sendrecv',
+    });
+
+    console.log("TRANSCEIVERS CREATED", remotePid, {
+      audioDirection: audioTransceiver.direction,
+      videoDirection: videoTransceiver.direction,
+      localAudioTracks: streamRef.current?.getAudioTracks().length,
+      localVideoTracks: streamRef.current?.getVideoTracks().length,
+    });
+
+    if (streamRef.current) {
+      const audioTrack = streamRef.current.getAudioTracks()[0];
+      const videoTrack = streamRef.current.getVideoTracks()[0];
+
+      if (audioTrack) {
+        audioTransceiver.sender.replaceTrack(audioTrack);
+      }
+
+      if (videoTrack) {
+        videoTransceiver.sender.replaceTrack(videoTrack);
+      }
     }
 
     // Receive remote camera/microphone tracks.
-    peer.ontrack = (event) => {
-      const [remoteStream] = event.streams;
+    
 
-      if (!remoteStream) return;
+peer.ontrack = (event) => {
+  console.log("REMOTE TRACK RECEIVED:", {
+    participant: remotePid,
+    kind: event.track.kind,
+    readyState: event.track.readyState,
+    streams: event.streams.length,
+  });
 
-      setRemoteStreams((current) => ({
-        ...current,
-        [remotePid]: remoteStream,
-      }));
-    };
+  const remoteStream =
+    event.streams?.[0] ||
+    remoteStreamsRef.current[remotePid] ||
+    new MediaStream();
+
+  if (
+    !remoteStream.getTracks().some(
+      (track) => track.id === event.track.id
+    )
+  ) {
+    remoteStream.addTrack(event.track);
+  }
+
+  setRemoteStreams((current) => ({
+    ...current,
+    [remotePid]: remoteStream,
+  }));
+
+  event.track.onunmute = () => {
+    console.log(
+      "REMOTE TRACK UNMUTED:",
+      remotePid,
+      event.track.kind
+    );
+  };
+};
+
+
 
     // Send ICE candidates through FastAPI.
     peer.onicecandidate = (event) => {
@@ -107,23 +165,45 @@ export default function Room() {
     };
 
     peer.onconnectionstatechange = () => {
-      const state = peer.connectionState;
+    const state = peer.connectionState;
 
-      if (
-        state === 'failed' ||
-        state === 'closed' ||
-        state === 'disconnected'
-      ) {
-        peer.close();
-        delete peersRef.current[remotePid];
+    console.log(
+      'WebRTC connection state:',
+      remotePid,
+      state
+    );
 
-        setRemoteStreams((current) => {
-          const next = { ...current };
-          delete next[remotePid];
-          return next;
-        });
-      }
-    };
+    if (
+      state === 'failed' ||
+      state === 'closed' ||
+      state === 'disconnected'
+    ) {
+      peer.close();
+      delete peersRef.current[remotePid];
+
+      setRemoteStreams((current) => {
+        const next = { ...current };
+        delete next[remotePid];
+        return next;
+      });
+    }
+  };
+
+  peer.oniceconnectionstatechange = () => {
+    console.log(
+      'WebRTC ICE state:',
+      remotePid,
+      peer.iceConnectionState
+    );
+  };
+
+  peer.onicegatheringstatechange = () => {
+    console.log(
+      'WebRTC ICE gathering:',
+      remotePid,
+      peer.iceGatheringState
+    );
+  };
 
     peersRef.current[remotePid] = peer;
 
@@ -152,12 +232,12 @@ export default function Room() {
       // Replace the camera video track with the screen track
       // for every connected participant.
       Object.values(peersRef.current).forEach((peer) => {
-        const sender = peer
-          .getSenders()
-          .find((s) => s.track?.kind === 'video');
+        const audioTransceiver = peer
+          .getTransceivers()
+          .find((transceiver) => transceiver.receiver.track?.kind === 'audio');
 
-        if (sender) {
-          sender.replaceTrack(screenTrack);
+        if (audioTransceiver) {
+          audioTransceiver.sender.replaceTrack(micTrack);
         }
       });
 
@@ -239,73 +319,75 @@ export default function Room() {
       await startScreenShare();
     }
   }
-
-  async function toggleCamera() {
+async function toggleCamera() {
   if (camOn) {
-    const videoTrack = stream?.getVideoTracks()[0];
+    const videoTrack = streamRef.current?.getVideoTracks()[0];
 
     if (videoTrack) {
-      videoTrack.stop();
-
-      Object.values(peersRef.current).forEach((peer) => {
-        const sender = peer.getSenders().find(
-          (s) => s.track?.kind === 'video'
-        );
-
-        if (sender) {
-          sender.replaceTrack(null);
-        }
-      });
+      videoTrack.enabled = false;
     }
 
     setCamOn(false);
-    setStream((prev) => {
-      if (!prev) return prev;
-
-      const newStream = new MediaStream(
-        prev.getAudioTracks()
-      );
-
-      return newStream;
-    });
-
     return;
   }
 
   try {
-    const cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: false,
-    });
+    const cameraStream =
+      await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
 
     const cameraTrack = cameraStream.getVideoTracks()[0];
 
     if (!cameraTrack) return;
 
+    const currentStream = streamRef.current;
+    const audioTracks = currentStream?.getAudioTracks() || [];
+
+    // Stop any old camera track before replacing it.
+    currentStream?.getVideoTracks().forEach((track) => {
+      track.stop();
+      currentStream.removeTrack(track);
+    });
+
     const newStream = new MediaStream([
-      ...(stream?.getAudioTracks() || []),
+      ...audioTracks,
       cameraTrack,
     ]);
 
     setStream(newStream);
     setCamOn(true);
 
-    Object.values(peersRef.current).forEach((peer) => {
-      const sender = peer.getSenders().find(
-        (s) => s.track?.kind === 'video'
-      );
+    // Send the new camera track to every connected participant.
+    await Promise.all(
+      Object.values(peersRef.current).map(async (peer) => {
+        const videoSender = peer
+          .getSenders()
+          .find((sender) => sender.track?.kind === "video");
 
-      if (sender) {
-        sender.replaceTrack(cameraTrack);
-      } else {
-        peer.addTrack(cameraTrack, newStream);
-      }
-    });
+        if (videoSender) {
+          await videoSender.replaceTrack(cameraTrack);
+        } else {
+          const videoTransceiver = peer
+            .getTransceivers()
+            .find(
+              (transceiver) =>
+                transceiver.receiver.track?.kind === "video"
+            );
+
+          if (videoTransceiver) {
+            await videoTransceiver.sender.replaceTrack(cameraTrack);
+          }
+        }
+      })
+    );
   } catch (error) {
-    console.log('Camera permission denied:', error);
+    console.error("Failed to start camera:", error);
     setCamOn(false);
   }
 }
+
 
 async function toggleMicrophone() {
   if (!muted) {
@@ -388,20 +470,10 @@ async function toggleMicrophone() {
     let dead = false;
     let media;
 
-    navigator.mediaDevices
-      ?.getUserMedia({
-        video: false,
-        audio: false,
-      })
-      .then((m) => {
-        if (dead) {
-          m.getTracks().forEach((t) => t.stop());
-        } else {
-          media = m;
-          setStream(m);
-        }
-      })
-      .catch(() => {});
+    
+    const m = new MediaStream();
+      media = m;
+      setStream(m);
 
     const t = setInterval(() => setElapsed((e) => e + 1), 1000);
 
@@ -449,6 +521,12 @@ async function toggleMicrophone() {
    * WebRTC signaling connection.
    */
   useEffect(() => {
+    console.log("WS effect:", {
+      pid,
+      hasStream: !!stream,
+      code,
+    });
+
     if (!pid || !stream) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -456,7 +534,7 @@ async function toggleMicrophone() {
     const host =
       process.env.NEXT_PUBLIC_API_WS_URL ||
       `${protocol}://${window.location.hostname}:8000`;
-
+    console.log("Opening meeting WebSocket:", host);
     const socket = new WebSocket(
       `${host}/ws/meetings/${code}?participant_id=${pid}`
     );
@@ -476,20 +554,26 @@ async function toggleMicrophone() {
        * The new participant creates offers to those peers.
        */
       if (message.type === 'peers') {
+        
         for (const remotePid of message.peers) {
+          // Ignore our own ID if a reload overlaps the old socket.
+          if (Number(remotePid) === Number(pid)) continue;
+
           const peer = createPeerConnection(remotePid);
 
-          const offer = await peer.createOffer();
 
+          if (peer.signalingState !== 'stable') {
+            continue;
+          }
+
+          const offer = await peer.createOffer();
           await peer.setLocalDescription(offer);
 
-          socket.send(
-            JSON.stringify({
-              type: 'offer',
-              target: remotePid,
-              offer: peer.localDescription,
-            })
-          );
+          socket.send(JSON.stringify({
+            type: 'offer',
+            target: remotePid,
+            offer: peer.localDescription,
+          }));
         }
 
         return;
@@ -501,9 +585,27 @@ async function toggleMicrophone() {
        * We don't create an offer here because the newly joined
        * participant already creates one for existing peers.
        */
-      if (message.type === 'peer-joined') {
-        return;
-      }
+      
+if (message.type === 'peer-joined') {
+  const remotePid = message.participant_id;
+
+  // A rejoining participant may still have a stale peer connection.
+  const oldPeer = peersRef.current[remotePid];
+
+  if (oldPeer) {
+    oldPeer.close();
+    delete peersRef.current[remotePid];
+  }
+
+  setRemoteStreams((current) => {
+    const next = { ...current };
+    delete next[remotePid];
+    return next;
+  });
+
+  return;
+}
+
 
       /*
        * Receive WebRTC offer.
@@ -540,6 +642,10 @@ async function toggleMicrophone() {
         const peer = peersRef.current[remotePid];
 
         if (!peer) return;
+
+        if (peer.signalingState !== 'have-local-offer') {
+          return;
+        }
 
         await peer.setRemoteDescription(
           new RTCSessionDescription(message.answer)
@@ -623,7 +729,7 @@ async function toggleMicrophone() {
       peersRef.current = {};
       socketRef.current = null;
     };
-  }, [pid, stream, code]);
+  }, [pid, code]);
 
   /*
    * poll roster
@@ -753,7 +859,9 @@ async function toggleMicrophone() {
               camOn={
                 p.id === pid
                   ? camOn || sharing
-                  : p.is_video_on || sharingParticipants[p.id]
+                  : !!remoteStreams[p.id] ||
+                    p.is_video_on ||
+                    sharingParticipants[p.id]
               }
               muted={
                 p.id === pid

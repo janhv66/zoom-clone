@@ -1,42 +1,59 @@
-import { useEffect, useRef } from 'react';
+
+import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import { colorFor, initials } from '@/lib/format';
 
-export default function VideoTile({ p, isMe, stream, camOn, muted }) {
+export default function VideoTile({
+  p,
+  isMe,
+  stream,
+  camOn,
+  muted,
+}) {
   const ref = useRef(null);
+  const [playing, setPlaying] = useState(false);
+
+  
+useEffect(() => {
+  const video = ref.current;
+  if (!video) return;
+
+  video.srcObject = stream || null;
+
+  if (stream) {
+    video.play().catch((error) => {
+      if (error.name !== "AbortError") {
+        console.warn("Video playback failed:", error);
+      }
+    });
+  }
+
+  return () => {
+    video.pause();
+    video.srcObject = null;
+  };
+}, [stream]);
+
 
   const hasVideo =
-    stream?.getVideoTracks().length > 0;
+    stream?.getVideoTracks().some(
+      (track) => track.readyState === 'live'
+    ) ?? false;
 
   const showVideo = hasVideo && camOn;
 
-  useEffect(() => {
-    if (!ref.current) return;
-
-    // Keep the remote media stream attached even when
-    // the participant's camera is turned off.
-    ref.current.srcObject = stream || null;
-  }, [stream]);
-
   return (
     <div className="vtile">
-      {/* 
-        Keep the video element mounted whenever a stream exists.
-        This is important because the same WebRTC stream contains
-        both audio and video tracks.
-      */}
-      {stream && (
-        <video
-          ref={ref}
-          autoPlay
-          muted={isMe}
-          playsInline
-          className="mirror"
-          style={{
-            display: showVideo ? 'block' : 'none',
-          }}
-        />
-      )}
+      <video
+        ref={ref}
+        autoPlay
+        playsInline
+        muted={isMe}
+        className="mirror"
+        style={{
+          display: showVideo ? 'block' : 'none',
+        }}
+      />
 
       {!showVideo && (
         <div
@@ -49,11 +66,8 @@ export default function VideoTile({ p, isMe, stream, camOn, muted }) {
 
       <div className="vlabel">
         {muted && <Icon name="micoff" size={14} />}
-
         {p.display_name}
-
         {isMe ? ' (Me)' : ''}
-
         {p.role === 'host' ? ' (Host)' : ''}
       </div>
     </div>
