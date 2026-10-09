@@ -1,0 +1,31 @@
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Python
+backend/__pycache__/
+backend/.pytest_cache/
+backend/*.pyc
+backend/.venv/
+backend/venv/
+
+# SQLite local database
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+
+# OS
+.DS_Store
+
+# Python cache directories
+**/__pycache__/
+*.py[cod]
