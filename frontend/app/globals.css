@@ -1,4 +1,4 @@
-:root{--blue:#0b5cff;--blue-d:#0845c4;--orange:#ff742e;--text:#232333;--muted:#6e7680;--line:#e6e8eb;--bg:#f7f9fa}
+:root{--blue:#0b5cff;--blue-d:#0845c4;--orange:#ff742e;--text:#232333;--muted:#6e7680;--line:#e6e8eb;--bg:#f2f4f6}
 *{box-sizing:border-box}
 body{margin:0;font-family:Lato,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg)}
 button{font:inherit;cursor:pointer}a{color:inherit;text-decoration:none}
@@ -149,4 +149,914 @@ input:focus,textarea:focus,select:focus{outline:2px solid #b7d0ff;border-color:v
   border-top:1px solid var(--line);
   margin-top:10px;
   padding-top:12px;
+}
+
+/* =========================================================
+   ZOOM WORKPLACE HEADER
+   ========================================================= */
+
+.top-header{
+  height:64px;
+  background:#fff;
+  border-bottom:1px solid #e5e7eb;
+  display:flex;
+  align-items:center;
+  padding:0 16px;
+  gap:28px;
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+
+.workplace-brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:250px;
+}
+
+.workplace-brand .logo{
+  font-size:30px;
+  font-weight:800;
+  color:#0b5cff;
+  letter-spacing:-1.8px;
+  line-height:1;
+}
+
+.brand-divider{
+  width:1px;
+  height:25px;
+  background:#d9dde3;
+}
+
+.workplace-brand strong{
+  font-size:22px;
+  font-weight:700;
+  color:#202124;
+}
+
+.top-nav{
+  display:flex;
+  align-items:center;
+  gap:30px;
+}
+
+.top-nav button,
+.admin-link{
+  border:0;
+  background:none;
+  color:#4d535b;
+  font-size:14px;
+  white-space:nowrap;
+}
+
+.top-nav button:hover,
+.admin-link:hover{
+  color:#0b5cff;
+}
+
+.top-actions{
+  margin-left:auto;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.top-arrow{
+  border:0;
+  background:none;
+  color:#9aa1aa;
+  font-size:28px;
+  width:25px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+}
+
+.search-box{
+  width:310px;
+  height:36px;
+  border:0;
+  border-radius:9px;
+  background:#eef0f2;
+  color:#555c65;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  font-size:14px;
+}
+
+.search-box svg{
+  color:#4d535b;
+}
+
+.admin-link{
+  margin-left:8px;
+}
+
+.download-btn,
+.upgrade-btn{
+  height:36px;
+  padding:0 17px;
+  border-radius:18px;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.download-btn{
+  border:0;
+  background:#f3f6fa;
+  color:#1261d6;
+}
+
+.download-btn:hover{
+  background:#e8edf4;
+}
+
+.upgrade-btn{
+  border:0;
+  background:#0b6eea;
+  color:#fff;
+}
+
+.upgrade-btn:hover{
+  background:#095ec9;
+}
+
+.header-icon{
+  width:36px;
+  height:36px;
+  border:0;
+  background:none;
+  color:#626972;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+}
+
+.header-icon:hover{
+  background:#f1f3f5;
+}
+
+
+/* =========================================================
+   PROFILE
+   ========================================================= */
+
+.profile-wrap{
+  position:relative;
+}
+
+.zoom-avatar{
+  position:relative;
+  width:36px;
+  height:36px;
+  border:0;
+  border-radius:10px;
+  background:#f5662f;
+  color:#fff;
+  font-size:14px;
+  font-weight:700;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+}
+
+.online-dot{
+  position:absolute;
+  right:-1px;
+  top:-1px;
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  background:#16a34a;
+  border:2px solid #fff;
+}
+
+
+/* =========================================================
+   LEFT ZOOM SIDEBAR
+   ========================================================= */
+
+.zoom-sidebar{
+  position:fixed;
+  left:0;
+  top:64px;
+  bottom:0;
+  width:72px;
+  background:#f1f3f5;
+  border-right:1px solid #e3e6e9;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  z-index:9;
+}
+
+.sidebar-items{
+  width:100%;
+  padding-top:4px;
+}
+
+.sidebar-item{
+  width:100%;
+  height:64px;
+  border:0;
+  background:transparent;
+  color:#606871;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  font-size:11px;
+  cursor:pointer;
+  position:relative;
+}
+
+.sidebar-item svg{
+  stroke-width:1.8;
+}
+
+.sidebar-item:hover{
+  background:#e7eaed;
+}
+
+.sidebar-item.active{
+  background:#fff;
+  color:#242933;
+  border-radius:9px;
+  width:calc(100% - 8px);
+  margin:4px;
+  height:60px;
+  font-weight:600;
+}
+
+.sidebar-item.active svg{
+  color:#242933;
+}
+
+.settings-item{
+  margin-top:auto;
+  margin-bottom:16px;
+}
+
+
+/* =========================================================
+   DASHBOARD POSITIONING
+   ========================================================= */
+
+.home{
+  margin-left:72px;
+  min-height:calc(100vh - 64px);
+  background:#f8f9fa;
+}
+
+/* =========================================================
+   ZOOM WORKPLACE HOME
+   ========================================================= */
+
+.zoom-home{
+  min-height:calc(100vh - 64px);
+  margin-left:72px;
+  background:#f2f4f6;
+  padding:4px 4px 14px 2px;
+}
+
+.zoom-home-inner{
+  width:100%;
+  min-height:calc(100vh - 82px);
+  margin:0;
+  padding-bottom:24px;
+  background:#fff;
+  border-radius:14px;
+}
+
+
+/* =========================================================
+   CLOCK
+   ========================================================= */
+
+.welcome-clock{
+  text-align:center;
+  padding-top:68px;
+  margin-bottom:28px;
+}
+
+.welcome-time{
+  font-size:40px;
+  line-height:1.1;
+  font-weight:700;
+  letter-spacing:-1.5px;
+  color:#252735;
+}
+
+.welcome-date{
+  margin-top:7px;
+  font-size:16px;
+  color:#777d86;
+}
+
+
+/* =========================================================
+   MAIN ACTIONS
+   ========================================================= */
+
+.home-actions{
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  gap:34px;
+  margin-bottom:25px;
+}
+
+.home-action{
+  width:92px;
+  border:0;
+  background:transparent;
+  padding:0;
+  color:#2b2d38;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:9px;
+}
+
+.home-action-icon{
+  width:58px;
+  height:58px;
+  border-radius:18px;
+  display:grid;
+  place-items:center;
+  color:#fff;
+}
+
+.home-action-icon.orange{
+  background:#ff742e;
+}
+
+.home-action-icon.blue{
+  background:#1267df;
+}
+
+.home-action-label{
+  font-size:14px;
+  color:#666d76;
+  white-space:nowrap;
+}
+
+.action-arrow{
+  margin-left:5px;
+  font-size:13px;
+  color:#858b93;
+}
+
+
+/* =========================================================
+   CALENDAR
+   ========================================================= */
+
+.calendar-card{
+  width:625px;
+  max-width:100%;
+  margin:0 auto;
+  border:1px solid #e0e3e7;
+  border-radius:10px;
+  background:#fff;
+  overflow:hidden;
+  margin-top:28px;
+}
+
+.calendar-header{
+  height:58px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  border-bottom:1px solid #e4e6e9;
+}
+
+.calendar-title{
+  font-size:15px;
+  font-weight:700;
+  color:#2c2e37;
+}
+
+.calendar-title span{
+  margin-left:5px;
+  font-size:12px;
+}
+
+.calendar-expand{
+  position:absolute;
+  right:20px;
+  border:0;
+  background:none;
+  color:#626972;
+  font-size:19px;
+  cursor:pointer;
+}
+
+.calendar-toolbar{
+  height:44px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 16px;
+  border-bottom:1px solid #e4e6e9;
+}
+
+.today-pill{
+  height:28px;
+  border:1px solid #9da6b0;
+  background:#fff;
+  border-radius:15px;
+  padding:0 10px;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  color:#555c65;
+  font-size:12px;
+}
+
+.calendar-arrow{
+  width:28px;
+  height:28px;
+  border:0;
+  background:none;
+  color:#666e77;
+  font-size:20px;
+  cursor:pointer;
+}
+
+.calendar-more{
+  margin-left:auto;
+  border:0;
+  background:none;
+  color:#626972;
+  font-weight:700;
+  letter-spacing:2px;
+  cursor:pointer;
+}
+.calendar-body{
+  min-height:265px;
+  padding:0;
+}
+
+.calendar-body:has(.empty-calendar-title){
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:28px;
+}
+
+.empty-calendar-icon{
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  background:#f2f3ff;
+  color:#a5aae2;
+  display:grid;
+  place-items:center;
+  margin-bottom:18px;
+}
+
+.empty-calendar-title{
+  font-size:14px;
+  color:#626a74;
+  margin-bottom:14px;
+}
+
+.empty-calendar-button{
+  border:1px solid #d7dce2;
+  background:#fff;
+  border-radius:7px;
+  padding:7px 14px;
+  color:#1267df;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.empty-calendar-button:hover{
+  background:#f5f8ff;
+}
+
+
+/* =========================================================
+   UPCOMING MEETINGS
+   ========================================================= */
+
+.meeting-list{
+  width:100%;
+  padding:0;
+}
+
+.zoom-meeting-row{
+  width:100%;
+  min-height:82px;
+  display:flex;
+  align-items:center;
+  gap:28px;
+  padding:18px 22px;
+  border-bottom:1px solid #e8eaed;
+}
+
+.zoom-meeting-row:last-child{
+  border-bottom:0;
+}
+
+.meeting-time{
+  width:78px;
+  flex-shrink:0;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.meeting-time strong{
+  font-size:15px;
+  color:#232333;
+}
+
+.meeting-time span{
+  font-size:12px;
+  color:#737b85;
+}
+
+.meeting-details{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+
+.meeting-details strong{
+  font-size:15px;
+  color:#232333;
+}
+
+.meeting-details span{
+  font-size:13px;
+  color:#737b85;
+}
+
+.meeting-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-shrink:0;
+}
+
+.meeting-start{
+  border:0;
+  background:var(--blue);
+  color:#fff;
+  padding:8px 18px;
+  border-radius:7px;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.meeting-start:hover{
+  background:var(--blue-d);
+}
+
+.meeting-delete{
+  border:0;
+  background:none;
+  color:#d92d20;
+  padding:8px 4px;
+  font-size:13px;
+  cursor:pointer;
+}
+
+.meeting-delete:hover{
+  text-decoration:underline;
+}
+
+.meeting-copy{
+  width:32px;
+  height:32px;
+  border:0;
+  background:transparent;
+  color:#68717c;
+  display:grid;
+  place-items:center;
+  border-radius:6px;
+}
+
+.meeting-copy:hover{
+  background:#f1f3f5;
+}
+
+.meeting-start{
+  border:0;
+  background:#1267df;
+  color:#fff;
+  border-radius:6px;
+  padding:7px 13px;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.meeting-start:hover{
+  background:#095bc9;
+}
+
+.meeting-delete{
+  border:0;
+  background:none;
+  color:#d92d20;
+  font-size:12px;
+  cursor:pointer;
+}
+
+
+/* =========================================================
+   RECENT MEETINGS
+   ========================================================= */
+
+.recent-section{
+  width:625px;
+  max-width:100%;
+  margin:20px auto 24px;
+  border:1px solid #e0e3e7;
+  border-radius:10px;
+  background:#fff;
+  overflow:hidden;
+}
+
+.recent-section-header{
+  padding:15px 18px;
+  border-bottom:1px solid #e4e6e9;
+}
+
+.recent-section-header h3{
+  margin:0;
+  font-size:15px;
+  color:#2c2e37;
+}
+
+.recent-list{
+  padding:0 16px;
+}
+
+.recent-meeting-row{
+  min-height:68px;
+  display:flex;
+  align-items:center;
+  gap:18px;
+  border-bottom:1px solid #e8eaed;
+}
+
+.recent-meeting-row:last-child{
+  border-bottom:0;
+}
+
+.recent-date{
+  width:82px;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+
+.recent-date strong{
+  font-size:13px;
+  color:#292c35;
+}
+
+.recent-date span{
+  font-size:12px;
+  color:#7a818a;
+}
+
+.recent-details{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.recent-details strong{
+  font-size:14px;
+  color:#292c35;
+}
+
+.recent-details span{
+  font-size:12px;
+  color:#7a818a;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width:1100px){
+  .top-nav{
+    display:none;
+  }
+
+  .search-box{
+    width:230px;
+  }
+
+  .admin-link{
+    display:none;
+  }
+
+  .workplace-brand{
+    min-width:auto;
+  }
+}
+
+@media (max-width:760px){
+  .top-header{
+    padding:0 10px;
+    gap:12px;
+  }
+
+  .workplace-brand strong,
+  .brand-divider,
+  .top-arrow,
+  .download-btn,
+  .upgrade-btn,
+  .header-icon{
+    display:none;
+  }
+
+  .top-actions{
+    gap:6px;
+  }
+
+  .search-box{
+    width:180px;
+  }
+
+  .zoom-sidebar{
+    width:58px;
+  }
+
+  .sidebar-item{
+    font-size:9px;
+  }
+
+  .zoom-home{
+    margin-left:58px;
+    padding:0 14px 35px;
+  }
+
+  .welcome-clock{
+    padding-top:42px;
+  }
+
+  .welcome-time{
+    font-size:34px;
+  }
+
+  .home-actions{
+    gap:20px;
+  }
+}
+
+@media (max-width:520px){
+  .search-box{
+    display:none;
+  }
+
+  .home-actions{
+    gap:12px;
+  }
+
+  .home-action-icon{
+    width:52px;
+    height:52px;
+  }
+
+  .calendar-card,
+  .recent-section{
+    width:100%;
+  }
+}
+
+.meetings-page{
+  min-height:calc(100vh - 64px);
+  margin-left:72px;
+  display:flex;
+  background:#f2f4f6;
+}
+
+.meetings-sidebar{
+  width:375px;
+  background:#fff;
+  border-right:1px solid #e1e4e8;
+  padding:18px 16px;
+}
+
+.meetings-sidebar h3{
+  margin:0 0 16px;
+  text-align:center;
+  font-size:15px;
+}
+
+.pmi-card{
+  background:#0b6ff2;
+  color:#fff;
+  border-radius:14px;
+  padding:18px;
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+
+.pmi-card strong{
+  font-size:20px;
+  letter-spacing:.5px;
+}
+
+.pmi-card span{
+  font-size:14px;
+}
+
+.meetings-empty{
+  text-align:center;
+  color:var(--muted);
+  margin-top:310px;
+}
+
+.meetings-content{
+  flex:1;
+  background:#fff;
+  padding:48px 42px;
+}
+
+.meetings-content h1{
+  margin:0 0 28px;
+  font-size:26px;
+}
+
+.pmi-number{
+  font-size:18px;
+  margin-bottom:28px;
+  color:#343844;
+}
+
+.pmi-actions{
+  display:flex;
+  gap:14px;
+  margin-bottom:48px;
+}
+
+.pmi-actions .btn{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.meetings-section-title{
+  font-size:20px;
+  margin:0 0 18px;
+}
+
+.meetings-list{
+  max-width:850px;
+}
+
+@media (max-width:800px){
+  .meetings-page{
+    margin-left:0;
+    flex-direction:column;
+  }
+
+  .meetings-sidebar{
+    width:100%;
+    border-right:0;
+    border-bottom:1px solid #e1e4e8;
+  }
+
+  .meetings-empty{
+    margin-top:30px;
+  }
+
+  .meetings-content{
+    padding:28px 20px;
+  }
+}
+
+.meeting-secondary-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-width:168px;
+  padding:9px 16px;
 }
