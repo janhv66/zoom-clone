@@ -1,481 +1,724 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-
-import Header from '@/components/Header';
-import Icon from '@/components/Icon';
-import JoinModal from '@/components/JoinModal';
-import ScheduleModal from '@/components/ScheduleModal';
+import { useEffect, useRef, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import Icon from '@/components/Icon';
+import VideoTile from '@/components/VideoTile';
+import ParticipantsPanel from '@/components/ParticipantsPanel';
+import { copy, formatCode, inviteLink } from '@/lib/format';
 
-const NOTICES = {
-  ended: 'The meeting has been ended by the host.',
-  removed: 'You have been removed from the meeting.',
-};
+const mmss = (s) =>
+  `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-function formatMeetingDate(date) {
-  if (!date) return '';
-
-  return new Date(date).toLocaleDateString([], {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
+function Tool({ icon, label, onClick, active, badge, danger }) {
+  return (
+    <button
+      className={`tool ${danger ? 'danger' : ''} ${active ? 'on' : ''}`}
+      onClick={onClick}
+    >
+      <Icon name={icon} size={24} />
+      {badge > 0 && <b className="badge">{badge}</b>}
+      <span>{label}</span>
+    </button>
+  );
 }
 
-function formatMeetingTime(date) {
-  if (!date) return '';
-
-  return new Date(date).toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-export default function Home() {
+export default function Room() {
+  const { code } = useParams();
   const router = useRouter();
 
-  const [me, setMe] = useState(null);
-  const [upcoming, setUpcoming] = useState([]);
-  const [recent, setRecent] = useState([]);
-  const [modal, setModal] = useState(null);
-  const [now, setNow] = useState(null);
-  const [toast, setToast] = useState('');
+  const [pid, setPid] = useState(null);
+  const [meeting, setMeeting] = useState(null);
+  const [data, setData] = useState({ participants: [] });
+  const [stream, setStream] = useState(null);
 
-  const load = useCallback(async () => {
-    const [u, r] = await Promise.all([
-      api.upcoming(),
-      api.recent(),
-    ]);
+  const [muted, setMuted] = useState(false);
+  const [camOn, setCamOn] = useState(true);
+  const [panel, setPanel] = useState(false);
+  const [info, setInfo] = useState(false);
+  const [leaveMenu, setLeaveMenu] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [sharing, setSharing] = useState(false);
+  const [sharingParticipants, setSharingParticipants] = useState({});
+  const screenTrackRef = useRef(null);
 
-    setUpcoming(u);
-    setRecent(r);
-  }, []);
+  // Remote participant media streams.
+  // participantId -> MediaStream
+  const [remoteStreams, setRemoteStreams] = useState({});
 
-  const flash = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3500);
-  };
+  // WebRTC connections.
+  const peersRef = useRef({});
 
-  useEffect(() => {
-    if (!localStorage.getItem('zoom_token')) {
-      router.replace('/login');
-      return;
+  // WebSocket connection.
+  const socketRef = useRef(null);
+
+  /*
+   * Create a WebRTC connection for one remote participant.
+   */
+  function createPeerConnection(remotePid) {
+    if (peersRef.current[remotePid]) {
+      return peersRef.current[remotePid];
     }
 
-    setNow(new Date());
+    const peer = new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: 'stun:stun.l.google.com:19302',
+        },
+      ],
+    });
 
-    const timer = setInterval(() => {
-      setNow(new Date());
-    }, 15000);
-
-    api.me()
-      .then(setMe)
-      .catch(() => {
-        localStorage.removeItem('zoom_token');
-        localStorage.removeItem('zoom_user');
-        router.replace('/login');
+    // Send our local camera/microphone tracks.
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        peer.addTrack(track, stream);
       });
+    }
 
-    load().catch((e) => {
+    // Receive remote camera/microphone tracks.
+    peer.ontrack = (event) => {
+      const [remoteStream] = event.streams;
+
+      if (!remoteStream) return;
+
+      setRemoteStreams((current) => ({
+        ...current,
+        [remotePid]: remoteStream,
+      }));
+    };
+
+    // Send ICE candidates through FastAPI.
+    peer.onicecandidate = (event) => {
+      if (!event.candidate) return;
+
+      const socket = socketRef.current;
+
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(
+          JSON.stringify({
+            type: 'ice-candidate',
+            target: remotePid,
+            candidate: event.candidate,
+          })
+        );
+      }
+    };
+
+    peer.onconnectionstatechange = () => {
+      const state = peer.connectionState;
+
       if (
-        e.message === 'Authentication required.' ||
-        e.message.toLowerCase().includes('token')
+        state === 'failed' ||
+        state === 'closed' ||
+        state === 'disconnected'
       ) {
-        localStorage.removeItem('zoom_token');
-        localStorage.removeItem('zoom_user');
-        router.replace('/login');
+        peer.close();
+        delete peersRef.current[remotePid];
+
+        setRemoteStreams((current) => {
+          const next = { ...current };
+          delete next[remotePid];
+          return next;
+        });
+      }
+    };
+
+    peersRef.current[remotePid] = peer;
+
+    return peer;
+  }
+
+  /*
+  * Start screen sharing.
+  */
+  async function startScreenShare() {
+    try {
+      const displayStream =
+        await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+        });
+
+      const screenTrack = displayStream.getVideoTracks()[0];
+
+      if (!screenTrack) {
         return;
       }
 
-      flash('Could not reach the server.');
-    });
+      screenTrackRef.current = screenTrack;
 
-    const notice = new URLSearchParams(window.location.search).get('notice');
+      // Replace the camera video track with the screen track
+      // for every connected participant.
+      Object.values(peersRef.current).forEach((peer) => {
+        const sender = peer
+          .getSenders()
+          .find((s) => s.track?.kind === 'video');
 
-    if (NOTICES[notice]) {
-      flash(NOTICES[notice]);
-    }
-
-    return () => clearInterval(timer);
-  }, [load, router]);
-
-  async function startAsHost(meeting) {
-    try {
-      const result = await api.join(meeting.code, {
-        display_name: me.name,
-        as_host: true,
+        if (sender) {
+          sender.replaceTrack(screenTrack);
+        }
       });
 
-      sessionStorage.setItem(
-        `zoom_pid_${meeting.code}`,
-        result.participant.id
+      setSharing(true);
+
+      const socket = socketRef.current;
+
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(
+          JSON.stringify({
+            type: 'screen-share',
+            sharing: true,
+          })
+        );
+      }
+
+      // If the user clicks "Stop sharing" from the browser's
+      // screen-sharing UI, restore the camera automatically.
+      screenTrack.onended = () => {
+        stopScreenShare();
+      };
+    } catch (error) {
+      console.log('Screen sharing cancelled:', error);
+    }
+  }
+
+
+  /*
+  * Stop screen sharing and restore the camera track.
+  */
+  async function stopScreenShare() {
+    const screenTrack = screenTrackRef.current;
+
+    if (screenTrack) {
+      screenTrack.onended = null;
+      screenTrack.stop();
+      screenTrackRef.current = null;
+    }
+
+    const cameraTrack = stream?.getVideoTracks()[0];
+
+    if (cameraTrack) {
+      Object.values(peersRef.current).forEach((peer) => {
+        const sender = peer
+          .getSenders()
+          .find((s) => s.track?.kind === 'video');
+
+        if (sender) {
+          sender.replaceTrack(cameraTrack);
+        }
+      });
+
+      // Respect the current camera state.
+      cameraTrack.enabled = camOn;
+    }
+
+    const socket = socketRef.current;
+
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(
+        JSON.stringify({
+          type: 'screen-share',
+          sharing: false,
+        })
       );
+    }
 
-      router.push(`/meeting/${meeting.code}`);
-    } catch (e) {
-      flash(e.message);
+    setSharing(false);
+  }
+
+
+  /*
+  * Toggle screen sharing.
+  */
+  async function toggleScreenShare() {
+    if (sharing) {
+      await stopScreenShare();
+    } else {
+      await startScreenShare();
     }
   }
 
-  async function newMeeting() {
-    try {
-      const meeting = await api.instant();
-      await startAsHost(meeting);
-    } catch (e) {
-      flash(e.message);
-    }
-  }
+  /*
+   * join session + local media
+   */
+  useEffect(() => {
+    const stored = sessionStorage.getItem(`zoom_pid_${code}`);
 
-  async function removeMeeting(meeting) {
-    try {
-      await api.remove(meeting.code);
-      await load();
-    } catch (e) {
-      flash(e.message);
+    if (!stored) {
+      router.replace(`/j/${code}`);
+      return;
     }
-  }
 
-  async function copyMeeting(code) {
-    try {
-      await navigator.clipboard.writeText(
-        `${window.location.origin}/j/${code}`
-      );
+    setPid(Number(stored));
 
-      flash('Invitation copied to clipboard');
-    } catch {
-      flash('Could not copy invitation');
+    api
+      .meeting(code)
+      .then(setMeeting)
+      .catch(() => router.replace('/'));
+
+    let dead = false;
+    let media;
+
+    navigator.mediaDevices
+      ?.getUserMedia({
+        video: true,
+        audio: true,
+      })
+      .then((m) => {
+        if (dead) {
+          m.getTracks().forEach((t) => t.stop());
+        } else {
+          media = m;
+          setStream(m);
+        }
+      })
+      .catch(() => setCamOn(false));
+
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+
+    return () => {
+      dead = true;
+      clearInterval(t);
+
+      media?.getTracks().forEach((track) => track.stop());
+    };
+  }, [code, router]);
+
+  /*
+   * Apply mute state to local microphone.
+   */
+  useEffect(() => {
+    stream
+      ?.getAudioTracks()
+      .forEach((track) => (track.enabled = !muted));
+  }, [stream, muted]);
+
+  /*
+   * Apply camera state to local video.
+   */
+  useEffect(() => {
+    stream
+      ?.getVideoTracks()
+      .forEach((track) => (track.enabled = camOn));
+  }, [stream, camOn]);
+
+  /*
+   * Sync local media state with backend.
+   */
+  useEffect(() => {
+    if (pid) {
+      api
+        .state(pid, {
+          is_muted: muted,
+          is_video_on: camOn,
+        })
+        .catch(() => {});
     }
+  }, [pid, muted, camOn]);
+
+  /*
+   * WebRTC signaling connection.
+   */
+  useEffect(() => {
+    if (!pid || !stream) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+
+    const host =
+      process.env.NEXT_PUBLIC_API_WS_URL ||
+      `${protocol}://${window.location.hostname}:8000`;
+
+    const socket = new WebSocket(
+      `${host}/ws/meetings/${code}?participant_id=${pid}`
+    );
+
+    socketRef.current = socket;
+
+    socket.onopen = () => {
+      console.log('WebSocket connected');
+    };
+
+    socket.onmessage = async (event) => {
+      const message = JSON.parse(event.data);
+
+      /*
+       * Server tells us who is already in the meeting.
+       *
+       * The new participant creates offers to those peers.
+       */
+      if (message.type === 'peers') {
+        for (const remotePid of message.peers) {
+          const peer = createPeerConnection(remotePid);
+
+          const offer = await peer.createOffer();
+
+          await peer.setLocalDescription(offer);
+
+          socket.send(
+            JSON.stringify({
+              type: 'offer',
+              target: remotePid,
+              offer: peer.localDescription,
+            })
+          );
+        }
+
+        return;
+      }
+
+      /*
+       * Another participant joined.
+       *
+       * We don't create an offer here because the newly joined
+       * participant already creates one for existing peers.
+       */
+      if (message.type === 'peer-joined') {
+        return;
+      }
+
+      /*
+       * Receive WebRTC offer.
+       */
+      if (message.type === 'offer') {
+        const remotePid = message.from;
+
+        const peer = createPeerConnection(remotePid);
+
+        await peer.setRemoteDescription(
+          new RTCSessionDescription(message.offer)
+        );
+
+        const answer = await peer.createAnswer();
+
+        await peer.setLocalDescription(answer);
+
+        socket.send(
+          JSON.stringify({
+            type: 'answer',
+            target: remotePid,
+            answer: peer.localDescription,
+          })
+        );
+
+        return;
+      }
+
+      /*
+       * Receive WebRTC answer.
+       */
+      if (message.type === 'answer') {
+        const remotePid = message.from;
+        const peer = peersRef.current[remotePid];
+
+        if (!peer) return;
+
+        await peer.setRemoteDescription(
+          new RTCSessionDescription(message.answer)
+        );
+
+        return;
+      }
+
+      /*
+       * Receive ICE candidate.
+       */
+      if (message.type === 'ice-candidate') {
+        const remotePid = message.from;
+        const peer = peersRef.current[remotePid];
+
+        if (!peer) return;
+
+        try {
+          await peer.addIceCandidate(
+            new RTCIceCandidate(message.candidate)
+          );
+        } catch (error) {
+          console.error('Failed to add ICE candidate:', error);
+        }
+
+        return;
+      }
+
+      if (message.type === 'screen-share') {
+        const remotePid = message.participant_id;
+
+        setSharingParticipants((current) => ({
+          ...current,
+          [remotePid]: message.sharing,
+        }));
+
+        return;
+      }
+
+      /*
+       * Participant disconnected.
+       */
+      if (message.type === 'peer-left') {
+        const remotePid = message.participant_id;
+        setSharingParticipants((current) => {
+          const next = { ...current };
+          delete next[remotePid];
+          return next;
+        });
+
+        const peer = peersRef.current[remotePid];
+
+        if (peer) {
+          peer.close();
+          delete peersRef.current[remotePid];
+        }
+
+        setRemoteStreams((current) => {
+          const next = { ...current };
+          delete next[remotePid];
+          return next;
+        });
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    socket.onclose = () => {
+      console.log('WebSocket disconnected');
+    };
+
+    return () => {
+      socket.close();
+
+      Object.values(peersRef.current).forEach((peer) => {
+        peer.close();
+      });
+
+      peersRef.current = {};
+      socketRef.current = null;
+    };
+  }, [pid, stream, code]);
+
+  /*
+   * poll roster
+   * also detects removal / meeting end
+   */
+  useEffect(() => {
+    if (!pid) return;
+
+    let stop = false;
+
+    const tick = async () => {
+      try {
+        const d = await api.participants(code, pid);
+
+        if (stop) return;
+
+        setData(d);
+
+        if (d.me_status === 'removed') {
+          router.replace('/?notice=removed');
+        } else if (d.meeting_status === 'ended') {
+          router.replace('/?notice=ended');
+        }
+      } catch {}
+    };
+
+    tick();
+
+    const t = setInterval(tick, 2500);
+
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+  }, [pid, code, router]);
+
+  const me = data.participants.find((p) => p.id === pid);
+  const isHost = me?.role === 'host';
+
+  /*
+   * Host muted me.
+   */
+  useEffect(() => {
+    if (me?.is_muted) {
+      setMuted(true);
+    }
+  }, [me?.is_muted]);
+
+  const ordered = me
+    ? [me, ...data.participants.filter((p) => p.id !== pid)]
+    : data.participants;
+
+  const cols = Math.ceil(Math.sqrt(ordered.length || 1));
+
+  async function leave(end) {
+    /*
+     * Close WebRTC connections.
+     */
+    Object.values(peersRef.current).forEach((peer) => {
+      peer.close();
+    });
+
+    peersRef.current = {};
+
+    /*
+     * Close WebSocket.
+     */
+    socketRef.current?.close();
+    socketRef.current = null;
+
+    /*
+     * Leave meeting through existing API.
+     */
+    await api.leave(pid, end).catch(() => {});
+
+    sessionStorage.removeItem(`zoom_pid_${code}`);
+
+    router.replace('/');
   }
 
   return (
-    <>
-      <Header user={me} />
+    <div className="room">
+      <div className="room-top">
+        <button className="info-btn" onClick={() => setInfo(!info)}>
+          <Icon name="shield" size={18} /> Meeting info
+        </button>
 
-      <main className="zoom-home">
-        <div className="zoom-home-inner">
+        <span className="timer">{mmss(elapsed)}</span>
 
-          {/* Clock */}
-          <section className="welcome-clock">
-            <div className="welcome-time">
-              {now
-                ? now.toLocaleTimeString([], {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })
-                : ''}
-            </div>
+        {info && meeting && (
+          <div className="info-pop">
+            <strong>{meeting.title}</strong>
 
-            <div className="welcome-date">
-              {now
-                ? now.toLocaleDateString([], {
-                    weekday: 'long',
-                    month: 'long',
-                    day: 'numeric',
-                  })
-                : ''}
-            </div>
-          </section>
+            <p>Meeting ID: {formatCode(meeting.code)}</p>
 
-          {/* Main actions */}
-          <section className="home-actions">
+            <p>Host: {meeting.host_name}</p>
+
+            <p className="link">{inviteLink(meeting.code)}</p>
 
             <button
-              className="home-action"
-              onClick={newMeeting}
+              className="chip"
+              onClick={() => copy(inviteLink(meeting.code))}
             >
-              <span className="home-action-icon orange">
-                <Icon name="video" size={30} />
-              </span>
-
-              <span className="home-action-label">
-                New meeting
-                <span className="action-arrow">⌄</span>
-              </span>
+              Copy invite link
             </button>
+          </div>
+        )}
+      </div>
 
-            <button
-              className="home-action"
-              onClick={() => setModal('join')}
-            >
-              <span className="home-action-icon blue">
-                <Icon name="plus" size={30} />
-              </span>
+      <div className="stage">
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          }}
+        >
+          {ordered.map((p) => (
+            <VideoTile
+              key={p.id}
+              p={p}
+              isMe={p.id === pid}
+              stream={
+                p.id === pid
+                  ? stream
+                  : remoteStreams[p.id] || null
+              }
+              camOn={
+                p.id === pid
+                  ? camOn || sharing
+                  : p.is_video_on || sharingParticipants[p.id]
+              }
+              muted={
+                p.id === pid
+                  ? muted
+                  : p.is_muted
+              }
+            />
+          ))}
+        </div>
 
-              <span className="home-action-label">
-                Join
-              </span>
-            </button>
+        {panel && (
+          <ParticipantsPanel
+            list={ordered}
+            myId={pid}
+            isHost={isHost}
+            onClose={() => setPanel(false)}
+            onMuteAll={() => api.muteAll(code, pid)}
+            onMute={(p) => api.mute(p.id, pid)}
+            onRemove={(p) => api.kick(p.id, pid)}
+          />
+        )}
+      </div>
 
-            <button
-              className="home-action"
-              onClick={() => setModal('schedule')}
-            >
-              <span className="home-action-icon blue">
-                <Icon name="calendar" size={30} />
-              </span>
+      <div className="toolbar">
+        <div className="tools">
+          <Tool
+            icon={muted ? 'micoff' : 'mic'}
+            label={muted ? 'Unmute' : 'Mute'}
+            onClick={() => setMuted(!muted)}
+            active={muted}
+          />
 
-              <span className="home-action-label">
-                Schedule
-              </span>
-            </button>
+          <Tool
+            icon={camOn ? 'video' : 'videooff'}
+            label={camOn ? 'Stop Video' : 'Start Video'}
+            onClick={() => setCamOn(!camOn)}
+            active={!camOn}
+          />
+        </div>
 
-          </section>
+        <div className="tools">
+          <Tool
+            icon="users"
+            label="Participants"
+            badge={ordered.length}
+            onClick={() => setPanel(!panel)}
+            active={panel}
+          />
 
-          {/* Zoom-style shortcuts */}
-          <section className="quick-links">
+          <Tool
+            icon="chat"
+            label="Chat"
+            onClick={() => {}}
+          />
 
-            <button
-              className="quick-link"
-              onClick={() => flash('Recordings are not implemented yet.')}
-            >
-              <span className="quick-link-icon recording">
-                <Icon name="video" size={17} />
-              </span>
-              <span>Recordings</span>
-            </button>
+          <Tool
+            icon="share"
+            label={sharing ? 'Stop Share' : 'Share Screen'}
+            onClick={toggleScreenShare}
+            active={sharing}
+          />
+        </div>
 
-            <button
-              className="quick-link"
-              onClick={() => flash('Summaries are not implemented yet.')}
-            >
-              <span className="quick-link-icon summary">
-                <Icon name="file" size={17} />
-              </span>
-              <span>Summaries</span>
-            </button>
+        <div className="tools leave-wrap">
+          <button
+            className="btn-leave"
+            onClick={() => setLeaveMenu(!leaveMenu)}
+          >
+            {isHost ? 'End' : 'Leave'}
+          </button>
 
-            <button
-              className="quick-link"
-              onClick={() => flash('My Notes are not implemented yet.')}
-            >
-              <span className="quick-link-icon notes">
-                <Icon name="edit" size={17} />
-              </span>
-              <span>My Notes</span>
-            </button>
-
-          </section>
-
-          {/* Meetings */}
-          <section className="calendar-card">
-
-            <div className="calendar-header">
-
-              <div className="calendar-title">
-                Today,{' '}
-                {now
-                  ? now.toLocaleDateString([], {
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  : ''}
-                <span>⌄</span>
-              </div>
-
-              <button
-                className="calendar-expand"
-                title="Open calendar"
-              >
-                ↗
-              </button>
-
-            </div>
-
-            <div className="calendar-toolbar">
-
-              <button className="today-pill">
-                <Icon name="calendar" size={13} />
-                Today
-              </button>
-
-              <button className="calendar-arrow">
-                ‹
-              </button>
-
-              <button className="calendar-arrow">
-                ›
-              </button>
-
-              <button
-                className="calendar-more"
-                onClick={() => flash('Calendar options')}
-              >
-                ···
-              </button>
-
-            </div>
-
-            <div className="calendar-body">
-
-              {upcoming.length === 0 ? (
-                <>
-                  <div className="empty-calendar-icon">
-                    <Icon name="calendar" size={42} />
-                  </div>
-
-                  <div className="empty-calendar-title">
-                    No meetings scheduled.
-                  </div>
-
-                  <button
-                    className="empty-calendar-button"
-                    onClick={() => setModal('schedule')}
-                  >
-                    Schedule a meeting
-                  </button>
-                </>
-              ) : (
-                <div className="meeting-list">
-
-                  {upcoming.map((meeting) => (
-                    <div
-                      className="zoom-meeting-row"
-                      key={meeting.id}
-                    >
-                      <div className="meeting-time">
-                        <strong>
-                          {formatMeetingTime(meeting.scheduled_at)}
-                        </strong>
-
-                        <span>
-                          {meeting.duration_min} min
-                        </span>
-                      </div>
-
-                      <div className="meeting-details">
-                        <strong>{meeting.title}</strong>
-
-                        <span>
-                          Meeting ID:{' '}
-                          {meeting.code
-                            .replace(
-                              /(\d{3})(?=\d)/g,
-                              '$1 '
-                            )}
-                        </span>
-                      </div>
-
-                      <div className="meeting-actions">
-
-                        <button
-                          className="meeting-copy"
-                          onClick={() =>
-                            copyMeeting(meeting.code)
-                          }
-                          title="Copy invitation"
-                        >
-                          <Icon name="copy" size={17} />
-                        </button>
-
-                        <button
-                          className="meeting-start"
-                          onClick={() =>
-                            startAsHost(meeting)
-                          }
-                        >
-                          Start
-                        </button>
-
-                        <button
-                          className="meeting-delete"
-                          onClick={() =>
-                            removeMeeting(meeting)
-                          }
-                        >
-                          Delete
-                        </button>
-
-                      </div>
-                    </div>
-                  ))}
-
-                </div>
+          {leaveMenu && (
+            <div className="leave-pop">
+              {isHost && (
+                <button
+                  className="danger-text"
+                  onClick={() => leave(true)}
+                >
+                  End Meeting for All
+                </button>
               )}
 
+              <button onClick={() => leave(false)}>
+                Leave Meeting
+              </button>
+
+              <button onClick={() => setLeaveMenu(false)}>
+                Cancel
+              </button>
             </div>
-          </section>
-
-          {/* Recent meetings */}
-          {recent.length > 0 && (
-            <section className="recent-section">
-
-              <div className="recent-section-header">
-                <h3>Recent meetings</h3>
-              </div>
-
-              <div className="recent-list">
-
-                {recent.map((meeting) => (
-                  <div
-                    className="recent-meeting-row"
-                    key={meeting.id}
-                  >
-                    <div className="recent-date">
-                      <strong>
-                        {formatMeetingDate(
-                          meeting.ended_at
-                        )}
-                      </strong>
-
-                      <span>
-                        {formatMeetingTime(
-                          meeting.ended_at
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="recent-details">
-                      <strong>{meeting.title}</strong>
-
-                      <span>
-                        Meeting ID:{' '}
-                        {meeting.code.replace(
-                          /(\d{3})(?=\d)/g,
-                          '$1 '
-                        )}
-                      </span>
-                    </div>
-
-                    <button
-                      className="meeting-copy"
-                      onClick={() =>
-                        copyMeeting(meeting.code)
-                      }
-                      title="Copy invitation"
-                    >
-                      <Icon name="copy" size={17} />
-                    </button>
-                  </div>
-                ))}
-
-              </div>
-
-            </section>
           )}
-
         </div>
-      </main>
-
-      {modal === 'join' && (
-        <JoinModal
-          onClose={() => setModal(null)}
-        />
-      )}
-
-      {modal === 'schedule' && (
-        <ScheduleModal
-          onClose={() => setModal(null)}
-          onCreated={load}
-        />
-      )}
-
-      {toast && (
-        <div className="toast">
-          {toast}
-        </div>
-      )}
-    </>
+      </div>
+    </div>
   );
 }
