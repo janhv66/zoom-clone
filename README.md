@@ -57,6 +57,7 @@ A full-stack Zoom-like video conferencing application built with Next.js, React,
 
 ## Project Structure
 
+```text
 zoom-clone/
 ├── frontend/
 │   ├── app/
@@ -103,6 +104,7 @@ zoom-clone/
 │   └── services.py
 │
 └── README.md
+```
 
 ## Getting Started
 
