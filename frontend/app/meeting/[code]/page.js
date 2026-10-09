@@ -33,14 +33,15 @@ export default function Room() {
   const [data, setData] = useState({ participants: [] });
   const [stream, setStream] = useState(null);
 
-  const [muted, setMuted] = useState(false);
-  const [camOn, setCamOn] = useState(true);
+  const [muted, setMuted] = useState(true);
+  const [camOn, setCamOn] = useState(false);
   const [panel, setPanel] = useState(false);
   const [info, setInfo] = useState(false);
   const [leaveMenu, setLeaveMenu] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [sharingParticipants, setSharingParticipants] = useState({});
+  const [moreMenu, setMoreMenu] = useState(false);
   const screenTrackRef = useRef(null);
 
   // Remote participant media streams.
@@ -239,6 +240,133 @@ export default function Room() {
     }
   }
 
+  async function toggleCamera() {
+  if (camOn) {
+    const videoTrack = stream?.getVideoTracks()[0];
+
+    if (videoTrack) {
+      videoTrack.stop();
+
+      Object.values(peersRef.current).forEach((peer) => {
+        const sender = peer.getSenders().find(
+          (s) => s.track?.kind === 'video'
+        );
+
+        if (sender) {
+          sender.replaceTrack(null);
+        }
+      });
+    }
+
+    setCamOn(false);
+    setStream((prev) => {
+      if (!prev) return prev;
+
+      const newStream = new MediaStream(
+        prev.getAudioTracks()
+      );
+
+      return newStream;
+    });
+
+    return;
+  }
+
+  try {
+    const cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: false,
+    });
+
+    const cameraTrack = cameraStream.getVideoTracks()[0];
+
+    if (!cameraTrack) return;
+
+    const newStream = new MediaStream([
+      ...(stream?.getAudioTracks() || []),
+      cameraTrack,
+    ]);
+
+    setStream(newStream);
+    setCamOn(true);
+
+    Object.values(peersRef.current).forEach((peer) => {
+      const sender = peer.getSenders().find(
+        (s) => s.track?.kind === 'video'
+      );
+
+      if (sender) {
+        sender.replaceTrack(cameraTrack);
+      } else {
+        peer.addTrack(cameraTrack, newStream);
+      }
+    });
+  } catch (error) {
+    console.log('Camera permission denied:', error);
+    setCamOn(false);
+  }
+}
+
+async function toggleMicrophone() {
+  if (!muted) {
+    const track = stream?.getAudioTracks()[0];
+
+    if (track) {
+      track.stop();
+
+      Object.values(peersRef.current).forEach((peer) => {
+        const sender = peer
+          .getSenders()
+          .find((s) => s.track?.kind === 'audio');
+
+        if (sender) {
+          sender.replaceTrack(null);
+        }
+      });
+    }
+
+    setMuted(true);
+    return;
+  }
+
+  try {
+    const micStream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false,
+    });
+
+    const micTrack = micStream.getAudioTracks()[0];
+
+    if (!micTrack) return;
+
+    let currentStream = stream;
+
+    if (!currentStream) {
+      currentStream = new MediaStream();
+    }
+
+    currentStream.addTrack(micTrack);
+    setStream(currentStream);
+
+    Object.values(peersRef.current).forEach((peer) => {
+      const sender = peer
+        .getSenders()
+        .find((s) => s.track?.kind === 'audio');
+
+      if (sender) {
+        sender.replaceTrack(micTrack);
+      } else {
+        peer.addTrack(micTrack, currentStream);
+      }
+    });
+
+    setMuted(false);
+  } catch (error) {
+    console.log('Microphone permission denied:', error);
+    setMuted(true);
+  }
+}
+
   /*
    * join session + local media
    */
@@ -262,8 +390,8 @@ export default function Room() {
 
     navigator.mediaDevices
       ?.getUserMedia({
-        video: true,
-        audio: true,
+        video: false,
+        audio: false,
       })
       .then((m) => {
         if (dead) {
@@ -273,7 +401,7 @@ export default function Room() {
           setStream(m);
         }
       })
-      .catch(() => setCamOn(false));
+      .catch(() => {});
 
     const t = setInterval(() => setElapsed((e) => e + 1), 1000);
 
@@ -650,23 +778,26 @@ export default function Room() {
       </div>
 
       <div className="toolbar">
-        <div className="tools">
+
+        {/* LEFT CONTROLS */}
+        <div className="toolbar-left">
           <Tool
             icon={muted ? 'micoff' : 'mic'}
             label={muted ? 'Unmute' : 'Mute'}
-            onClick={() => setMuted(!muted)}
+            onClick={toggleMicrophone}
             active={muted}
           />
 
           <Tool
             icon={camOn ? 'video' : 'videooff'}
             label={camOn ? 'Stop Video' : 'Start Video'}
-            onClick={() => setCamOn(!camOn)}
+            onClick={toggleCamera}
             active={!camOn}
           />
         </div>
 
-        <div className="tools">
+        {/* CENTER CONTROLS */}
+        <div className="toolbar-center">
           <Tool
             icon="users"
             label="Participants"
@@ -681,43 +812,104 @@ export default function Room() {
             onClick={() => {}}
           />
 
+          <div className="mobile-more-item">
+            <Tool
+            icon="smile"
+            label="React"
+            onClick={() => {}}
+          />
+          </div>
+
+          <div className="mobile-more-item">
           <Tool
             icon="share"
             label={sharing ? 'Stop Share' : 'Share Screen'}
             onClick={toggleScreenShare}
             active={sharing}
           />
-        </div>
+          </div>
 
-        <div className="tools leave-wrap">
-          <button
-            className="btn-leave"
-            onClick={() => setLeaveMenu(!leaveMenu)}
-          >
-            {isHost ? 'End' : 'Leave'}
-          </button>
-
-          {leaveMenu && (
-            <div className="leave-pop">
-              {isHost && (
-                <button
-                  className="danger-text"
-                  onClick={() => leave(true)}
-                >
-                  End Meeting for All
-                </button>
-              )}
-
-              <button onClick={() => leave(false)}>
-                Leave Meeting
-              </button>
-
-              <button onClick={() => setLeaveMenu(false)}>
-                Cancel
-              </button>
+          {isHost && (
+            <div className="mobile-more-item">
+            <Tool
+            icon="shield"
+            label="Host tools"
+            onClick={() => setPanel(true)}
+            />
             </div>
           )}
+
+          <div className="mobile-more-wrap">
+            <Tool
+              icon="more"
+              label="More"
+              onClick={() => setMoreMenu(!moreMenu)}
+              active={moreMenu}
+            />
+
+            {moreMenu && (
+              <div className="mobile-more-menu">
+                <Tool
+                  icon="smile"
+                  label="React"
+                  onClick={() => setMoreMenu(false)}
+                />
+
+                <Tool
+                  icon="share"
+                  label={sharing ? 'Stop Share' : 'Share Screen'}
+                  onClick={() => {
+                    toggleScreenShare();
+                    setMoreMenu(false);
+                  }}
+                  active={sharing}
+                />
+
+                {isHost && (
+                  <Tool
+                    icon="shield"
+                    label="Host tools"
+                    onClick={() => setPanel(true)}
+                  />
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* RIGHT CONTROL */}
+        <div className="toolbar-right">
+          <div className="leave-wrap">
+            <button
+              className="btn-leave"
+              onClick={() => setLeaveMenu(!leaveMenu)}
+            >
+              {isHost ? 'End' : 'Leave'}
+            </button>
+
+            {leaveMenu && (
+              <div className="leave-pop">
+                {isHost && (
+                  <button
+                    className="danger-text"
+                    onClick={() => leave(true)}
+                  >
+                    End Meeting for All
+                  </button>
+                )}
+
+                <button onClick={() => leave(false)}>
+                  Leave Meeting
+                </button>
+
+                <button onClick={() => setLeaveMenu(false)}>
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );

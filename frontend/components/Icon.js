@@ -2,7 +2,11 @@ const P = {
   home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/>',
 
   contact: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="9" r="2.5"/><path d="M7.5 17a5 5 0 0 1 9 0"/>',
+  smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/>',
 
+  more: '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="12" r=".8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r=".8" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r=".8" fill="currentColor" stroke="none"/>',
+
+  end: '<path d="M7 7l10 10"/><path d="M17 7 7 17"/><path d="M12 3a9 9 0 1 0 9 9"/>',
   
   video: '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
   videooff: '<path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/>',
