@@ -1310,7 +1310,7 @@ input:focus,textarea:focus,select:focus{outline:2px solid #b7d0ff;border-color:v
 
 @media (max-width:800px){
   .meetings-page{
-    margin-left:0;
+    margin-left:58px;
     flex-direction:column;
   }
 
