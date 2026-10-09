@@ -27,14 +27,39 @@ export default function Home() {
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 
   useEffect(() => {
+    if (!localStorage.getItem('zoom_token')) {
+      router.replace('/login');
+      return;
+    }
+
     setNow(new Date());
+
     const t = setInterval(() => setNow(new Date()), 15000);
-    api.me().then(setMe).catch(() => {});
-    load().catch(() => flash('Could not reach the server.'));
+
+    api.me()
+      .then(setMe)
+      .catch(() => {
+        localStorage.removeItem('zoom_token');
+        localStorage.removeItem('zoom_user');
+        router.replace('/login');
+      });
+
+    load().catch((e) => {
+      if (e.message === 'Authentication required.' || e.message.includes('token')) {
+        localStorage.removeItem('zoom_token');
+        localStorage.removeItem('zoom_user');
+        router.replace('/login');
+        return;
+      }
+
+      flash('Could not reach the server.');
+    });
+
     const n = new URLSearchParams(window.location.search).get('notice');
     if (NOTICES[n]) flash(NOTICES[n]);
+
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, router]);
 
   async function startAsHost(m) {
     try {

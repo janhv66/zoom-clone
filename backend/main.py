@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 
 import models
 from database import Base, SessionLocal, engine, get_db
-from routers import meetings, participants, signaling
+from routers import auth, meetings, participants, signaling
 from seed import seed
-from services import DEFAULT_USER_ID
+from fastapi import Header, HTTPException
+from auth import get_user_from_token
 
 
 @asynccontextmanager
@@ -26,12 +27,26 @@ app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS", "*").
 app.include_router(meetings.router)
 app.include_router(participants.router)
 app.include_router(signaling.router)
+app.include_router(auth.router)
 
 
 @app.get("/api/me")
-def me(db: Session = Depends(get_db)):
-    u = db.get(models.User, DEFAULT_USER_ID)
-    return {"id": u.id, "name": u.name, "email": u.email}
+def me(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Authentication required.")
+
+    token = authorization.split(" ", 1)[1]
+    u = get_user_from_token(db, token)
+
+    return {
+        "id": u.id,
+        "name": u.name,
+        "email": u.email,
+        "personal_meeting_id": u.personal_meeting_id,
+    }
 
 
 @app.get("/api/health")

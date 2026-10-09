@@ -35,3 +35,13 @@ class StateIn(BaseModel):
 
 class LeaveIn(BaseModel):
     end_meeting: bool = False
+
+class SignupIn(BaseModel):
+    name: str
+    email: str
+    password: str
+
+
+class LoginIn(BaseModel):
+    email: str
+    password: str

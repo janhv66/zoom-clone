@@ -43,7 +43,7 @@ def get_meeting_or_404(db: Session, raw: str) -> Meeting:
     return meeting
 
 
-def meeting_out(m: Meeting) -> dict:
+def meeting_out(m: Meeting, actor_id: int | None = None) -> dict:
     return {
         "id": m.id,
         "code": m.code,
@@ -56,7 +56,7 @@ def meeting_out(m: Meeting) -> dict:
         "started_at": iso(m.started_at),
         "ended_at": iso(m.ended_at),
         "host_name": m.host.name,
-        "is_host": m.host_id == DEFAULT_USER_ID,
+        "is_host": actor_id is not None and m.host_id == actor_id,
         "invite_link": f"{FRONTEND_URL}/j/{m.code}",
     }
 

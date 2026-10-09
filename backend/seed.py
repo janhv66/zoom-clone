@@ -9,7 +9,13 @@ from services import utcnow
 def seed(db: Session):
     if db.query(User).first():
         return
-    me = User(id=1, name="Alex Morgan", email="alex.morgan@example.com")
+    me = User(
+        id=1,
+        name="Alex Morgan",
+        email="alex.morgan@example.com",
+        password_hash="seeded-user",
+        personal_meeting_id="9123456780",
+    )
     db.add(me)
     db.flush()
     now = utcnow()
